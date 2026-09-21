@@ -7,10 +7,8 @@
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Three.js и загрузчики -->
+    <!-- Lightweight Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
 
     <style>
         * {
@@ -138,7 +136,7 @@
     <div id="menu-overlay">
         <div class="title">SUBWAY RUNNER</div>
         <button class="btn" id="start-btn">ИГРАТЬ</button>
-        <div id="loader-info">Загрузка ресурсов...</div>
+        <div id="loader-info">Нажмите "Играть" для старта</div>
     </div>
 
     <!-- Фоновая музыка -->
@@ -153,7 +151,7 @@
         }
 
         let scene, camera, renderer;
-        let playerGroup, mixer;
+        let playerGroup;
         let isPlaying = false;
         let score = 0;
         const initialSpeed = 20.0;
@@ -170,11 +168,15 @@
         let coins = [];
         let buildings = [];
         let soundMuted = false;
+        let animTime = 0;
+
+        // Кости/части тела процедурного человечка
+        let leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot, torsoMesh;
 
         const bgMusic = document.getElementById('bg-music');
         bgMusic.volume = 0.35;
 
-        // Звуковой движок Web Audio API
+        // Web Audio API
         const AudioEngine = {
             ctx: null,
             init() {
@@ -295,17 +297,17 @@
             renderer.toneMappingExposure = 1.15;
             container.appendChild(renderer.domElement);
 
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x555566, 1.0);
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x555566, 1.1);
             scene.add(hemiLight);
 
-            const dirLight = new THREE.DirectionalLight(0xfffaed, 1.3);
-            dirLight.position.set(25, 45, 15);
+            const dirLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+            dirLight.position.set(20, 40, 15);
             dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 2048;
-            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
             dirLight.shadow.camera.near = 0.5;
-            dirLight.shadow.camera.far = 150;
-            const d = 25;
+            dirLight.shadow.camera.far = 80;
+            const d = 15;
             dirLight.shadow.camera.left = -d;
             dirLight.shadow.camera.right = d;
             dirLight.shadow.camera.top = d;
@@ -316,8 +318,8 @@
             scene.add(playerGroup);
 
             createRoadEnvironment();
-            loadCharacterModel();
-            createCityEnvironment();
+            createProceduralHumanoidPlayer();
+            createCityEnvironment(); // Здания создаются БЕЗ теней!
 
             window.addEventListener('resize', onWindowResize);
             setupControls();
@@ -382,49 +384,93 @@
             }
         }
 
-        function loadCharacterModel() {
-            const loaderInfo = document.getElementById('loader-info');
-            const fbxLoader = new THREE.FBXLoader();
+        // Создаем детального стильного 3D-человечка через геометрии Three.js
+        function createProceduralHumanoidPlayer() {
+            const jacketMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 }); // Синяя куртка
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.6 });   // Кожа
+            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });  // Джинсы
+            const shoeMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3 });   // Оранжевые кроссовки
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x221100, roughness: 0.9 });   // Волосы
 
-            fbxLoader.load('assets/animation/Running.fbx', (fbx) => {
-                fbx.scale.setScalar(0.0125); 
-                fbx.rotation.y = Math.PI;
+            // Корпус / Туловище
+            torsoMesh = new THREE.Group();
+            
+            const chestGeo = new THREE.BoxGeometry(0.55, 0.65, 0.32);
+            const chest = new THREE.Mesh(chestGeo, jacketMat);
+            chest.position.y = 1.15;
+            chest.castShadow = true;
+            torsoMesh.add(chest);
 
-                fbx.traverse(c => {
-                    if (c.isMesh) {
-                        c.castShadow = true;
-                        c.receiveShadow = true;
-                    }
-                });
+            // Голова
+            const headGeo = new THREE.SphereGeometry(0.2, 16, 16);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.position.y = 1.62;
+            head.castShadow = true;
+            torsoMesh.add(head);
 
-                if (fbx.animations && fbx.animations.length > 0) {
-                    const clip = fbx.animations[0];
-                    // Фильтруем смещение костей
-                    clip.tracks = clip.tracks.filter(track => !track.name.endsWith('.position'));
+            // Прическа / Кепка
+            const hairGeo = new THREE.BoxGeometry(0.24, 0.12, 0.24);
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.set(0, 1.74, -0.02);
+            torsoMesh.add(hair);
 
-                    mixer = new THREE.AnimationMixer(fbx);
-                    const action = mixer.clipAction(clip);
-                    action.play();
-                }
+            // РУКИ (с шарниром в плечах)
+            const armGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.5, 12);
 
-                playerGroup.add(fbx);
-                loaderInfo.innerText = "Персонаж загружен!";
-            }, 
-            undefined, 
-            () => {
-                createProceduralPlayer();
-            });
+            // Левая рука
+            leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(-0.34, 1.4, 0);
+            const leftArm = new THREE.Mesh(armGeo, jacketMat);
+            leftArm.position.y = -0.22;
+            leftArm.castShadow = true;
+            leftArmPivot.add(leftArm);
+            torsoMesh.add(leftArmPivot);
+
+            // Правая рука
+            rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(0.34, 1.4, 0);
+            const rightArm = new THREE.Mesh(armGeo, jacketMat);
+            rightArm.position.y = -0.22;
+            rightArm.castShadow = true;
+            rightArmPivot.add(rightArm);
+            torsoMesh.add(rightArmPivot);
+
+            playerGroup.add(torsoMesh);
+
+            // НОГИ (с шарниром в бедрах)
+            const legGeo = new THREE.CylinderGeometry(0.09, 0.08, 0.55, 12);
+            const shoeGeo = new THREE.BoxGeometry(0.14, 0.12, 0.28);
+
+            // Левая нога
+            leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(-0.16, 0.85, 0);
+            const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+            leftLeg.position.y = -0.25;
+            leftLeg.castShadow = true;
+            leftLegPivot.add(leftLeg);
+
+            const leftShoe = new THREE.Mesh(shoeGeo, shoeMat);
+            leftShoe.position.set(0, -0.52, 0.06);
+            leftShoe.castShadow = true;
+            leftLegPivot.add(leftShoe);
+            playerGroup.add(leftLegPivot);
+
+            // Правая нога
+            rightLegPivot = new THREE.Group();
+            rightLegPivot.position.set(0.16, 0.85, 0);
+            const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+            rightLeg.position.y = -0.25;
+            rightLeg.castShadow = true;
+            rightLegPivot.add(rightLeg);
+
+            const rightShoe = new THREE.Mesh(shoeGeo, shoeMat);
+            rightShoe.position.set(0, -0.52, 0.06);
+            rightShoe.castShadow = true;
+            rightLegPivot.add(rightShoe);
+            playerGroup.add(rightLegPivot);
         }
 
-        function createProceduralPlayer() {
-            const bodyGeo = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff3366 });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.8;
-            body.castShadow = true;
-            playerGroup.add(body);
-        }
-
+        // ПОЛНОСТЬЮ УБРАЛИ ТЕНИ ОТ ЗДАНИЙ ДЛЯ ИДЕАЛЬНОЙ ПЛАВНОСТИ (60+ FPS)!
         function createCityEnvironment() {
             const buildingColors = [
                 { bg: '#b87353', win: '#ffe082' },
@@ -446,8 +492,9 @@
                     const bldMat = new THREE.MeshStandardMaterial({ map: bldTex, roughness: 0.5 });
                     const building = new THREE.Mesh(bldGeo, bldMat);
                     building.position.set(x, height / 2, -i * 20 + 20);
-                    building.castShadow = true;
-                    building.receiveShadow = true;
+                    // Тени отключены для скорости:
+                    building.castShadow = false; 
+                    building.receiveShadow = false;
 
                     const roofGeo = new THREE.BoxGeometry(9.0, 0.6, 14.5);
                     const roofMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
@@ -461,7 +508,6 @@
             }
         }
 
-        // Препятствие: Машина
         function createCarObstacle(zPos, laneIndex) {
             const carGroup = new THREE.Group();
             
@@ -505,7 +551,6 @@
             obstacles.push({ mesh: carGroup, lane: laneIndex, type: 'car' });
         }
 
-        // Препятствие: Шлагбаум / Заграждение (можно перепрыгнуть)
         function createBarrierObstacle(zPos, laneIndex) {
             const barrierGroup = new THREE.Group();
 
@@ -626,7 +671,6 @@
             isPlaying = true;
         }
 
-        // Генерация паттернов со случайными монетками и препятствиями
         function spawnPattern(zPos) {
             const obstacleType = Math.random() > 0.45 ? 'car' : 'barrier';
             const obsLane = Math.floor(Math.random() * 3);
@@ -637,9 +681,8 @@
                 createBarrierObstacle(zPos, obsLane);
             }
 
-            // Случайные монетки
             const coinLane = Math.floor(Math.random() * 3);
-            const coinCount = Math.floor(Math.random() * 5) + 2; // от 2 до 6 монеток
+            const coinCount = Math.floor(Math.random() * 5) + 2; 
             const isAirCoins = (coinLane === obsLane && obstacleType === 'barrier') || Math.random() > 0.7;
 
             for (let c = 0; c < coinCount; c++) {
@@ -655,11 +698,29 @@
             requestAnimationFrame(animate);
             const delta = Math.min(clock.getDelta(), 0.1); 
 
-            if (mixer) mixer.update(delta);
-
             if (isPlaying) {
-                // Плавное постепенное увеличение скорости игры с давлением времени!
+                // Постепенное ускорение
                 worldSpeed = Math.min(worldSpeed + delta * 0.35, 48.0);
+
+                // ПРОЦЕДУРНАЯ АНИМАЦИЯ БЕГА ЧЕЛОВЕЧКА
+                animTime += delta * worldSpeed * 0.7;
+                
+                if (!isJumping) {
+                    leftLegPivot.rotation.x = Math.sin(animTime) * 0.75;
+                    rightLegPivot.rotation.x = -Math.sin(animTime) * 0.75;
+                    
+                    leftArmPivot.rotation.x = -Math.sin(animTime) * 0.65;
+                    rightArmPivot.rotation.x = Math.sin(animTime) * 0.65;
+
+                    torsoMesh.position.y = Math.abs(Math.sin(animTime * 2)) * 0.08;
+                    torsoMesh.rotation.z = Math.sin(animTime) * 0.04;
+                } else {
+                    // Анимация в прыжке
+                    leftLegPivot.rotation.x = -0.6;
+                    rightLegPivot.rotation.x = 0.4;
+                    leftArmPivot.rotation.x = -1.2;
+                    rightArmPivot.rotation.x = -1.2;
+                }
 
                 playerGroup.position.x += (targetX - playerGroup.position.x) * 15.0 * delta;
 
@@ -674,7 +735,7 @@
 
                 const moveStep = worldSpeed * delta;
 
-                // Проверка препятствий
+                // Проверка столкновений
                 for (let i = obstacles.length - 1; i >= 0; i--) {
                     let obs = obstacles[i];
                     obs.mesh.position.z += moveStep;
@@ -694,7 +755,7 @@
                     }
                 }
 
-                // Проверка монет
+                // Сбор монет
                 for (let i = coins.length - 1; i >= 0; i--) {
                     let coin = coins[i];
                     coin.position.z += moveStep;
