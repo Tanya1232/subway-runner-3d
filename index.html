@@ -2,29 +2,34 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-    <title>Subway Runner 3D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Runner Telegram</title>
+    
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Lightweight Three.js -->
+    <!-- Three.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Firebase SDK (Compat version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <style>
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none;
+            margin: 0;
+            padding: 0;
         }
         body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #68b0d8;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #111;
+            font-family: Arial, sans-serif;
+            color: #fff;
         }
         #game-container {
             width: 100%;
@@ -41,85 +46,56 @@
             height: 100%;
             pointer-events: none;
             display: flex;
+            flex-direction: column;
             justify-content: space-between;
-            align-items: flex-start;
-            padding: 20px;
+            padding: 15px;
             z-index: 10;
         }
-        .score-board {
+        .stats-panel {
             background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-            padding: 12px 25px;
-            border-radius: 25px;
-            color: #fff;
-            font-size: 24px;
-            font-weight: 800;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            backdrop-filter: blur(5px);
+            padding: 10px 15px;
+            border-radius: 12px;
+            display: inline-block;
+            font-weight: bold;
+            font-size: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .sound-btn {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            color: white;
-            font-size: 22px;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            cursor: pointer;
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #menu-overlay {
+        .yellow { color: #ffd700; }
+        .green { color: #2ecc71; }
+        
+        #game-over-screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(15, 25, 45, 0.82);
-            backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             z-index: 20;
             pointer-events: auto;
         }
-        .title {
-            font-size: 48px;
-            font-weight: 900;
-            color: #ffcc00;
-            text-shadow: 0 0 25px rgba(255, 204, 0, 0.8), 0 5px 0 #cc9900;
-            margin-bottom: 25px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-align: center;
-        }
-        .btn {
-            background: linear-gradient(180deg, #ff5500, #dd2200);
+        .hidden { display: none !important; }
+        
+        h1 { font-size: 32px; margin-bottom: 10px; color: #ff4757; }
+        p { font-size: 18px; margin-bottom: 20px; }
+        
+        button {
+            background: #2ed573;
             color: white;
-            border: 3px solid #ffffff;
-            padding: 16px 50px;
-            font-size: 26px;
-            font-weight: 900;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 8px 30px rgba(221, 34, 0, 0.6);
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-        .btn:active {
-            transform: scale(0.95);
-        }
-        #loader-info {
-            position: absolute;
-            bottom: 30px;
-            color: #ffffff;
-            font-size: 16px;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
             font-weight: bold;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4);
+            transition: transform 0.1s;
         }
+        button:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -127,685 +103,344 @@
     <div id="game-container"></div>
 
     <div id="ui-layer">
-        <div class="score-board">
-            ОЧКИ: <span id="score-val">0</span>
+        <div>
+            <div class="stats-panel">
+                Игрок: <span id="user-name">Гость</span><br>
+                Монет за забег: <span id="run-coins" class="yellow">0</span><br>
+                Всего в БД: <span id="db-coins" class="green">Загрузка...</span>
+            </div>
         </div>
-        <button class="sound-btn" id="sound-toggle">🔊</button>
+        <div class="stats-panel" style="align-self: flex-end;">
+            Счет: <span id="score">0</span>
+        </div>
     </div>
 
-    <div id="menu-overlay">
-        <div class="title">SUBWAY RUNNER</div>
-        <button class="btn" id="start-btn">ИГРАТЬ</button>
-        <div id="loader-info">Нажмите "Играть" для старта</div>
+    <div id="game-over-screen" class="hidden">
+        <h1>ИГРА ОКОНЧАНА</h1>
+        <p>Собрано монет: <span id="final-coins" class="yellow">0</span></p>
+        <p id="save-status">Сохранение в Firebase...</p>
+        <button id="restart-btn" onclick="restartGame()">ИГРАТЬ СНОВА</button>
     </div>
-
-    <!-- Фоновая музыка -->
-    <audio id="bg-music" loop preload="auto">
-        <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73228.mp3?filename=fun-runner-loop-10271.mp3" type="audio/mpeg">
-    </audio>
 
     <script>
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
+        // ==========================================
+        // 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM WEBAPP
+        // ==========================================
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        const tgUser = tg.initDataUnsafe?.user;
+        const userId = tgUser ? String(tgUser.id) : "test_user_123";
+        const userName = tgUser ? tgUser.first_name : "Тестовый Игрок";
+
+        document.getElementById('user-name').innerText = userName;
+
+        // ==========================================
+        // 2. ИНИЦИАЛИЗАЦИЯ FIREBASE (ТВОИ КЛЮЧИ ВСТАВЛЕНЫ)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAldWIqoZyCi6LBGONbYyMlT51Lu9zCv9E",
+            authDomain: "subway-runner-8679e.firebaseapp.com",
+            projectId: "subway-runner-8679e",
+            storageBucket: "subway-runner-8679e.firebasestorage.app",
+            messagingSenderId: "601251558444",
+            appId: "1:601251558444:web:6240efd1d1738f2e650d89"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let totalUserCoins = 0;
+
+        // Загрузка монет игрока из Firestore
+        function loadUserCoins() {
+            db.collection("users").doc(userId).get().then((doc) => {
+                if (doc.exists) {
+                    totalUserCoins = doc.data().coins || 0;
+                } else {
+                    totalUserCoins = 0;
+                    db.collection("users").doc(userId).set({ coins: 0, name: userName });
+                }
+                document.getElementById('db-coins').innerText = totalUserCoins;
+            }).catch((err) => {
+                console.error("Ошибка Firebase:", err);
+                document.getElementById('db-coins').innerText = "Ошибка";
+            });
         }
 
+        // Сохранение монет после забега
+        function saveCoinsToFirebase(collectedInRun) {
+            if (collectedInRun === 0) {
+                document.getElementById('save-status').innerText = "Монеты не собраны";
+                return;
+            }
+
+            document.getElementById('save-status').innerText = "Сохранение...";
+
+            const userRef = db.collection("users").doc(userId);
+            
+            userRef.update({
+                coins: firebase.firestore.FieldValue.increment(collectedInRun)
+            }).then(() => {
+                totalUserCoins += collectedInRun;
+                document.getElementById('db-coins').innerText = totalUserCoins;
+                document.getElementById('save-status').innerText = "Успешно сохранено!";
+            }).catch(() => {
+                userRef.set({
+                    coins: collectedInRun,
+                    name: userName
+                }, { merge: true }).then(() => {
+                    totalUserCoins += collectedInRun;
+                    document.getElementById('db-coins').innerText = totalUserCoins;
+                    document.getElementById('save-status').innerText = "Успешно сохранено!";
+                });
+            });
+        }
+
+        loadUserCoins();
+
+        // ==========================================
+        // 3. 3D ИГРОВАЯ ЛОГИКА (THREE.JS)
+        // ==========================================
         let scene, camera, renderer;
-        let playerGroup;
-        let isPlaying = false;
-        let score = 0;
-        const initialSpeed = 20.0;
-        let worldSpeed = initialSpeed; 
-        let currentLane = 0; 
-        const laneX = [-2.0, 0, 2.0];
+        let player, playerBox;
+        let currentLane = 0;
+        const laneX = [-2, 0, 2];
         let targetX = 0;
-        
         let isJumping = false;
         let jumpVelocity = 0;
-        const gravity = -32.0;
+        const gravity = -0.015;
 
         let obstacles = [];
         let coins = [];
-        let buildings = [];
-        let soundMuted = false;
-        let animTime = 0;
+        let score = 0;
+        let coinsCollected = 0;
+        let isGameOver = false;
+        let speed = 0.2;
 
-        // Кости/части тела процедурного человечка
-        let leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot, torsoMesh;
-
-        const bgMusic = document.getElementById('bg-music');
-        bgMusic.volume = 0.35;
-
-        // Web Audio API
-        const AudioEngine = {
-            ctx: null,
-            init() {
-                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            },
-            playCoin() {
-                if (!this.ctx || soundMuted) return;
-                const now = this.ctx.currentTime;
-                [1174.66, 1567.98].forEach((freq, idx) => {
-                    let osc = this.ctx.createOscillator();
-                    let gain = this.ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, now + idx * 0.04);
-                    gain.gain.setValueAtTime(0.12, now + idx * 0.04);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.2);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start(now + idx * 0.04);
-                    osc.stop(now + idx * 0.04 + 0.2);
-                });
-            },
-            playJump() {
-                if (!this.ctx || soundMuted) return;
-                let osc = this.ctx.createOscillator();
-                let gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(550, this.ctx.currentTime + 0.12);
-                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.12);
-            },
-            playCrash() {
-                if (!this.ctx || soundMuted) return;
-                const now = this.ctx.currentTime;
-                let osc = this.ctx.createOscillator();
-                let gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(140, now);
-                osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.35);
-            }
-        };
-
-        function generateBuildingTexture(bgColor, windowColor) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = bgColor;
-            ctx.fillRect(0, 0, 256, 512);
-
-            for (let y = 20; y < 490; y += 40) {
-                for (let x = 18; x < 230; x += 48) {
-                    ctx.fillStyle = '#1e293b'; 
-                    ctx.fillRect(x - 2, y - 2, 34, 28);
-
-                    if (Math.random() > 0.35) {
-                        ctx.fillStyle = windowColor; 
-                    } else {
-                        ctx.fillStyle = '#0f172a'; 
-                    }
-                    ctx.fillRect(x, y, 30, 24);
-                }
-            }
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        function createBarrierTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 32;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, 128, 32);
-
-            ctx.fillStyle = '#d32f2f';
-            for (let i = 0; i < 128; i += 32) {
-                ctx.beginPath();
-                ctx.moveTo(i, 0);
-                ctx.lineTo(i + 16, 0);
-                ctx.lineTo(i, 32);
-                ctx.lineTo(i - 16, 32);
-                ctx.fill();
-            }
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.repeat.set(3, 1);
-            return texture;
-        }
-
-        function initScene() {
+        function init3D() {
             const container = document.getElementById('game-container');
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x68b0d8);
-            scene.fog = new THREE.FogExp2(0x68b0d8, 0.008);
+            scene.background = new THREE.Color(0x1a1a24);
+            scene.fog = new THREE.FogExp2(0x1a1a24, 0.03);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            updateCameraAspect();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 3, 6);
+            camera.lookAt(0, 1, 0);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.15;
             container.appendChild(renderer.domElement);
 
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x555566, 1.1);
-            scene.add(hemiLight);
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 10, 7);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-            const dirLight = new THREE.DirectionalLight(0xfffaed, 1.2);
-            dirLight.position.set(20, 40, 15);
-            dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 1024;
-            dirLight.shadow.mapSize.height = 1024;
-            dirLight.shadow.camera.near = 0.5;
-            dirLight.shadow.camera.far = 80;
-            const d = 15;
-            dirLight.shadow.camera.left = -d;
-            dirLight.shadow.camera.right = d;
-            dirLight.shadow.camera.top = d;
-            dirLight.shadow.camera.bottom = -d;
-            scene.add(dirLight);
+            const roadGeo = new THREE.PlaneGeometry(7, 1000);
+            const roadMat = new THREE.MeshBasicMaterial({ color: 0x333344 });
+            const road = new THREE.Mesh(roadGeo, roadMat);
+            road.rotation.x = -Math.PI / 2;
+            road.position.z = -450;
+            scene.add(road);
 
-            playerGroup = new THREE.Group();
-            scene.add(playerGroup);
+            for (let x of [-1, 1]) {
+                const lineGeo = new THREE.PlaneGeometry(0.1, 1000);
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const line = new THREE.Mesh(lineGeo, lineMat);
+                line.rotation.x = -Math.PI / 2;
+                line.position.set(x, 0.01, -450);
+                scene.add(line);
+            }
 
-            createRoadEnvironment();
-            createProceduralHumanoidPlayer();
-            createCityEnvironment(); // Здания создаются БЕЗ теней!
+            const playerGeo = new THREE.BoxGeometry(0.8, 1.2, 0.8);
+            const playerMat = new THREE.MeshLambertMaterial({ color: 0x00a8ff });
+            player = new THREE.Mesh(playerGeo, playerMat);
+            player.position.set(0, 0.6, 0);
+            scene.add(player);
+
+            playerBox = new THREE.Box3();
 
             window.addEventListener('resize', onWindowResize);
             setupControls();
-        }
-
-        function updateCameraAspect() {
-            const aspect = window.innerWidth / window.innerHeight;
-            camera.aspect = aspect;
-            camera.fov = aspect < 1 ? 62 + (1 - aspect) * 20 : 60;
-            camera.updateProjectionMatrix();
-        }
-
-        function createRoadEnvironment() {
-            // База под городом
-            const bigGroundGeo = new THREE.PlaneGeometry(300, 400);
-            const bigGroundMat = new THREE.MeshStandardMaterial({ color: 0x222226, roughness: 0.95 });
-            const bigGround = new THREE.Mesh(bigGroundGeo, bigGroundMat);
-            bigGround.rotation.x = -Math.PI / 2;
-            bigGround.position.set(0, -0.03, -100);
-            bigGround.receiveShadow = true;
-            scene.add(bigGround);
-
-            // Тротуары
-            const sidewalkGeo = new THREE.PlaneGeometry(30, 400);
-            const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x666670, roughness: 0.7 });
-            [-19, 19].forEach(x => {
-                const sidewalk = new THREE.Mesh(sidewalkGeo, sidewalkMat);
-                sidewalk.rotation.x = -Math.PI / 2;
-                sidewalk.position.set(x, -0.01, -100);
-                sidewalk.receiveShadow = true;
-                scene.add(sidewalk);
-            });
-
-            // Дорога
-            const roadGeo = new THREE.PlaneGeometry(8, 400);
-            const roadMat = new THREE.MeshStandardMaterial({ color: 0x333338, roughness: 0.8 });
-            const road = new THREE.Mesh(roadGeo, roadMat);
-            road.rotation.x = -Math.PI / 2;
-            road.position.set(0, 0, -100);
-            road.receiveShadow = true;
-            scene.add(road);
-
-            // Бордюры
-            [-4.1, 4.1].forEach(x => {
-                const curbGeo = new THREE.BoxGeometry(0.3, 0.2, 400);
-                const curbMat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
-                const curb = new THREE.Mesh(curbGeo, curbMat);
-                curb.position.set(x, 0.1, -100);
-                scene.add(curb);
-            });
-
-            // Разметка
-            for (let i = -150; i < 50; i += 8) {
-                [-1.0, 1.0].forEach(x => {
-                    const lineGeo = new THREE.PlaneGeometry(0.16, 3.8);
-                    const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                    const line = new THREE.Mesh(lineGeo, lineMat);
-                    line.rotation.x = -Math.PI / 2;
-                    line.position.set(x, 0.02, i);
-                    scene.add(line);
-                });
-            }
-        }
-
-        // Создаем детального стильного 3D-человечка через геометрии Three.js
-        function createProceduralHumanoidPlayer() {
-            const jacketMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 }); // Синяя куртка
-            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.6 });   // Кожа
-            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });  // Джинсы
-            const shoeMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3 });   // Оранжевые кроссовки
-            const hairMat = new THREE.MeshStandardMaterial({ color: 0x221100, roughness: 0.9 });   // Волосы
-
-            // Корпус / Туловище
-            torsoMesh = new THREE.Group();
             
-            const chestGeo = new THREE.BoxGeometry(0.55, 0.65, 0.32);
-            const chest = new THREE.Mesh(chestGeo, jacketMat);
-            chest.position.y = 1.15;
-            chest.castShadow = true;
-            torsoMesh.add(chest);
-
-            // Голова
-            const headGeo = new THREE.SphereGeometry(0.2, 16, 16);
-            const head = new THREE.Mesh(headGeo, skinMat);
-            head.position.y = 1.62;
-            head.castShadow = true;
-            torsoMesh.add(head);
-
-            // Прическа / Кепка
-            const hairGeo = new THREE.BoxGeometry(0.24, 0.12, 0.24);
-            const hair = new THREE.Mesh(hairGeo, hairMat);
-            hair.position.set(0, 1.74, -0.02);
-            torsoMesh.add(hair);
-
-            // РУКИ (с шарниром в плечах)
-            const armGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.5, 12);
-
-            // Левая рука
-            leftArmPivot = new THREE.Group();
-            leftArmPivot.position.set(-0.34, 1.4, 0);
-            const leftArm = new THREE.Mesh(armGeo, jacketMat);
-            leftArm.position.y = -0.22;
-            leftArm.castShadow = true;
-            leftArmPivot.add(leftArm);
-            torsoMesh.add(leftArmPivot);
-
-            // Правая рука
-            rightArmPivot = new THREE.Group();
-            rightArmPivot.position.set(0.34, 1.4, 0);
-            const rightArm = new THREE.Mesh(armGeo, jacketMat);
-            rightArm.position.y = -0.22;
-            rightArm.castShadow = true;
-            rightArmPivot.add(rightArm);
-            torsoMesh.add(rightArmPivot);
-
-            playerGroup.add(torsoMesh);
-
-            // НОГИ (с шарниром в бедрах)
-            const legGeo = new THREE.CylinderGeometry(0.09, 0.08, 0.55, 12);
-            const shoeGeo = new THREE.BoxGeometry(0.14, 0.12, 0.28);
-
-            // Левая нога
-            leftLegPivot = new THREE.Group();
-            leftLegPivot.position.set(-0.16, 0.85, 0);
-            const leftLeg = new THREE.Mesh(legGeo, pantsMat);
-            leftLeg.position.y = -0.25;
-            leftLeg.castShadow = true;
-            leftLegPivot.add(leftLeg);
-
-            const leftShoe = new THREE.Mesh(shoeGeo, shoeMat);
-            leftShoe.position.set(0, -0.52, 0.06);
-            leftShoe.castShadow = true;
-            leftLegPivot.add(leftShoe);
-            playerGroup.add(leftLegPivot);
-
-            // Правая нога
-            rightLegPivot = new THREE.Group();
-            rightLegPivot.position.set(0.16, 0.85, 0);
-            const rightLeg = new THREE.Mesh(legGeo, pantsMat);
-            rightLeg.position.y = -0.25;
-            rightLeg.castShadow = true;
-            rightLegPivot.add(rightLeg);
-
-            const rightShoe = new THREE.Mesh(shoeGeo, shoeMat);
-            rightShoe.position.set(0, -0.52, 0.06);
-            rightShoe.castShadow = true;
-            rightLegPivot.add(rightShoe);
-            playerGroup.add(rightLegPivot);
-        }
-
-        // ПОЛНОСТЬЮ УБРАЛИ ТЕНИ ОТ ЗДАНИЙ ДЛЯ ИДЕАЛЬНОЙ ПЛАВНОСТИ (60+ FPS)!
-        function createCityEnvironment() {
-            const buildingColors = [
-                { bg: '#b87353', win: '#ffe082' },
-                { bg: '#4a6572', win: '#ffd54f' },
-                { bg: '#8d6e63', win: '#fff59d' },
-                { bg: '#37474f', win: '#80deea' }
-            ];
-
-            for(let i = 0; i < 16; i++) {
-                [-10.5, 10.5].forEach(x => {
-                    const colorScheme = buildingColors[Math.floor(Math.random() * buildingColors.length)];
-                    const bldTex = generateBuildingTexture(colorScheme.bg, colorScheme.win);
-                    bldTex.wrapS = THREE.RepeatWrapping;
-                    bldTex.wrapT = THREE.RepeatWrapping;
-                    bldTex.repeat.set(1, 3);
-
-                    const height = 18 + Math.random() * 12;
-                    const bldGeo = new THREE.BoxGeometry(8.5, height, 14);
-                    const bldMat = new THREE.MeshStandardMaterial({ map: bldTex, roughness: 0.5 });
-                    const building = new THREE.Mesh(bldGeo, bldMat);
-                    building.position.set(x, height / 2, -i * 20 + 20);
-                    // Тени отключены для скорости:
-                    building.castShadow = false; 
-                    building.receiveShadow = false;
-
-                    const roofGeo = new THREE.BoxGeometry(9.0, 0.6, 14.5);
-                    const roofMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-                    const roof = new THREE.Mesh(roofGeo, roofMat);
-                    roof.position.y = height / 2 + 0.3;
-                    building.add(roof);
-
-                    scene.add(building);
-                    buildings.push(building);
-                });
-            }
-        }
-
-        function createCarObstacle(zPos, laneIndex) {
-            const carGroup = new THREE.Group();
-            
-            const colors = [0xde3535, 0x27ae60, 0x2980b9, 0xf39c12, 0x8e44ad];
-            const carColor = colors[Math.floor(Math.random() * colors.length)];
-
-            const bodyGeo = new THREE.BoxGeometry(1.5, 0.85, 2.8);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: carColor, metalness: 0.4, roughness: 0.3 });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.6;
-            body.castShadow = true;
-            carGroup.add(body);
-
-            const cabinGeo = new THREE.BoxGeometry(1.35, 0.65, 1.5);
-            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x151522, roughness: 0.1, metalness: 0.8 });
-            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-            cabin.position.set(0, 1.25, -0.1);
-            cabin.castShadow = true;
-            carGroup.add(cabin);
-
-            const lightGeo = new THREE.BoxGeometry(0.3, 0.15, 0.1);
-            const lightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-            [-0.5, 0.5].forEach(lx => {
-                const light = new THREE.Mesh(lightGeo, lightMat);
-                light.position.set(lx, 0.6, 1.4);
-                carGroup.add(light);
-            });
-
-            const wheelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.22, 16);
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
-            [[-0.75, 0.28, 0.9], [0.75, 0.28, 0.9], [-0.75, 0.28, -0.9], [0.75, 0.28, -0.9]].forEach(pos => {
-                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-                wheel.rotation.z = Math.PI / 2;
-                wheel.position.set(...pos);
-                wheel.castShadow = true;
-                carGroup.add(wheel);
-            });
-
-            carGroup.position.set(laneX[laneIndex], 0, zPos);
-            scene.add(carGroup);
-            obstacles.push({ mesh: carGroup, lane: laneIndex, type: 'car' });
-        }
-
-        function createBarrierObstacle(zPos, laneIndex) {
-            const barrierGroup = new THREE.Group();
-
-            const postGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 12);
-            const postMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 });
-
-            [-0.85, 0.85].forEach(px => {
-                const post = new THREE.Mesh(postGeo, postMat);
-                post.position.set(px, 0.5, 0);
-                post.castShadow = true;
-                barrierGroup.add(post);
-            });
-
-            const barGeo = new THREE.BoxGeometry(1.8, 0.2, 0.12);
-            const barMat = new THREE.MeshStandardMaterial({ map: createBarrierTexture(), roughness: 0.4 });
-            const bar = new THREE.Mesh(barGeo, barMat);
-            bar.position.set(0, 0.62, 0);
-            bar.castShadow = true;
-            barrierGroup.add(bar);
-
-            barrierGroup.position.set(laneX[laneIndex], 0, zPos);
-            scene.add(barrierGroup);
-            obstacles.push({ mesh: barrierGroup, lane: laneIndex, type: 'barrier' });
-        }
-
-        function createCoin(zPos, laneIndex, yPos = 0.9) {
-            const coinGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.08, 20);
-            const coinMat = new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness: 0.9, roughness: 0.1 });
-            const coin = new THREE.Mesh(coinGeo, coinMat);
-            coin.rotation.x = Math.PI / 2;
-            coin.position.set(laneX[laneIndex], yPos, zPos);
-            coin.castShadow = true;
-            scene.add(coin);
-            coins.push(coin);
+            spawnInitialObjects();
+            animate();
         }
 
         function setupControls() {
+            document.addEventListener('keydown', (e) => {
+                if (isGameOver) return;
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') moveLane(-1);
+                if (e.code === 'ArrowRight' || e.code === 'KeyD') moveLane(1);
+                if ((e.code === 'ArrowUp' || e.code === 'Space') && !isJumping) jump();
+            });
+
             let touchStartX = 0;
             let touchStartY = 0;
 
-            window.addEventListener('touchstart', e => {
+            document.addEventListener('touchstart', (e) => {
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
-            }, { passive: true });
+            });
 
-            window.addEventListener('touchend', e => {
-                let dx = e.changedTouches[0].clientX - touchStartX;
-                let dy = e.changedTouches[0].clientY - touchStartY;
+            document.addEventListener('touchend', (e) => {
+                if (isGameOver) return;
+                let diffX = e.changedTouches[0].clientX - touchStartX;
+                let diffY = e.changedTouches[0].clientY - touchStartY;
 
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    if (dx > 30) moveRight();
-                    else if (dx < -30) moveLeft();
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    if (diffX > 30) moveLane(1);
+                    else if (diffX < -30) moveLane(-1);
                 } else {
-                    if (dy < -30) jump();
+                    if (diffY < -30 && !isJumping) jump();
                 }
-            }, { passive: true });
-
-            window.addEventListener('keydown', e => {
-                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
-                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
-                if (e.key === 'ArrowUp' || e.key === ' ' || e.key === 'w' || e.key === 'W') jump();
-            });
-
-            document.getElementById('sound-toggle').addEventListener('click', () => {
-                soundMuted = !soundMuted;
-                document.getElementById('sound-toggle').innerText = soundMuted ? '🔇' : '🔊';
-                if (soundMuted) bgMusic.pause();
-                else if (isPlaying) bgMusic.play().catch(() => {});
             });
         }
 
-        function moveLeft() {
-            if (currentLane > -1) {
-                currentLane--;
-                targetX = laneX[currentLane + 1];
-            }
-        }
-
-        function moveRight() {
-            if (currentLane < 1) {
-                currentLane++;
-                targetX = laneX[currentLane + 1];
-            }
+        function moveLane(dir) {
+            currentLane = Math.max(-1, Math.min(1, currentLane + dir));
+            targetX = laneX[currentLane + 1];
         }
 
         function jump() {
-            if (!isJumping) {
-                isJumping = true;
-                jumpVelocity = 10.5;
-                AudioEngine.playJump();
+            isJumping = true;
+            jumpVelocity = 0.25;
+        }
+
+        function spawnInitialObjects() {
+            for (let i = 1; i < 15; i++) {
+                spawnRow(-i * 15);
             }
         }
 
-        function startGame() {
-            AudioEngine.init();
-            if (!soundMuted) {
-                bgMusic.currentTime = 0;
-                bgMusic.play().catch(() => {});
-            }
+        function spawnRow(zPos) {
+            const laneIndex = Math.floor(Math.random() * 3);
+            const posX = laneX[laneIndex];
 
-            document.getElementById('menu-overlay').style.display = 'none';
-            score = 0;
-            document.getElementById('score-val').innerText = score;
-            worldSpeed = initialSpeed;
-            currentLane = 0;
-            targetX = 0;
-            playerGroup.position.set(0, 0, 0);
-
-            obstacles.forEach(o => scene.remove(o.mesh));
-            coins.forEach(c => scene.remove(c));
-            obstacles = [];
-            coins = [];
-
-            for(let i = 0; i < 5; i++) {
-                spawnPattern(-35 - i * 25);
-            }
-
-            isPlaying = true;
-        }
-
-        function spawnPattern(zPos) {
-            const obstacleType = Math.random() > 0.45 ? 'car' : 'barrier';
-            const obsLane = Math.floor(Math.random() * 3);
-
-            if (obstacleType === 'car') {
-                createCarObstacle(zPos, obsLane);
+            if (Math.random() > 0.4) {
+                const obsGeo = new THREE.BoxGeometry(1.2, 1, 1);
+                const obsMat = new THREE.MeshLambertMaterial({ color: 0xff4757 });
+                const obs = new THREE.Mesh(obsGeo, obsMat);
+                obs.position.set(posX, 0.5, zPos);
+                obs.box = new THREE.Box3();
+                scene.add(obs);
+                obstacles.push(obs);
             } else {
-                createBarrierObstacle(zPos, obsLane);
-            }
-
-            const coinLane = Math.floor(Math.random() * 3);
-            const coinCount = Math.floor(Math.random() * 5) + 2; 
-            const isAirCoins = (coinLane === obsLane && obstacleType === 'barrier') || Math.random() > 0.7;
-
-            for (let c = 0; c < coinCount; c++) {
-                const coinZ = zPos - 3 - c * 2.2;
-                const coinY = isAirCoins ? 1.6 : 0.9;
-                createCoin(coinZ, coinLane, coinY);
+                const coinGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
+                const coinMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+                const coin = new THREE.Mesh(coinGeo, coinMat);
+                coin.rotation.x = Math.PI / 2;
+                coin.position.set(posX, 0.6, zPos);
+                coin.box = new THREE.Box3();
+                scene.add(coin);
+                coins.push(coin);
             }
         }
-
-        const clock = new THREE.Clock();
 
         function animate() {
+            if (isGameOver) return;
+
             requestAnimationFrame(animate);
-            const delta = Math.min(clock.getDelta(), 0.1); 
 
-            if (isPlaying) {
-                // Постепенное ускорение
-                worldSpeed = Math.min(worldSpeed + delta * 0.35, 48.0);
+            player.position.x += (targetX - player.position.x) * 0.2;
 
-                // ПРОЦЕДУРНАЯ АНИМАЦИЯ БЕГА ЧЕЛОВЕЧКА
-                animTime += delta * worldSpeed * 0.7;
-                
-                if (!isJumping) {
-                    leftLegPivot.rotation.x = Math.sin(animTime) * 0.75;
-                    rightLegPivot.rotation.x = -Math.sin(animTime) * 0.75;
-                    
-                    leftArmPivot.rotation.x = -Math.sin(animTime) * 0.65;
-                    rightArmPivot.rotation.x = Math.sin(animTime) * 0.65;
+            if (isJumping) {
+                player.position.y += jumpVelocity;
+                jumpVelocity += gravity;
+                if (player.position.y <= 0.6) {
+                    player.position.y = 0.6;
+                    isJumping = false;
+                }
+            }
 
-                    torsoMesh.position.y = Math.abs(Math.sin(animTime * 2)) * 0.08;
-                    torsoMesh.rotation.z = Math.sin(animTime) * 0.04;
-                } else {
-                    // Анимация в прыжке
-                    leftLegPivot.rotation.x = -0.6;
-                    rightLegPivot.rotation.x = 0.4;
-                    leftArmPivot.rotation.x = -1.2;
-                    rightArmPivot.rotation.x = -1.2;
+            playerBox.setFromObject(player);
+
+            score++;
+            document.getElementById('score').innerText = Math.floor(score / 5);
+
+            let maxZ = 0;
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.position.z += speed;
+                obs.box.setFromObject(obs);
+
+                if (playerBox.intersectsBox(obs.box)) {
+                    triggerGameOver();
                 }
 
-                playerGroup.position.x += (targetX - playerGroup.position.x) * 15.0 * delta;
+                if (obs.position.z > 5) {
+                    scene.remove(obs);
+                    obstacles.splice(i, 1);
+                }
+                if (obs.position.z < maxZ) maxZ = obs.position.z;
+            }
 
-                if (isJumping) {
-                    playerGroup.position.y += jumpVelocity * delta;
-                    jumpVelocity += gravity * delta;
-                    if (playerGroup.position.y <= 0) {
-                        playerGroup.position.y = 0;
-                        isJumping = false;
-                    }
+            for (let i = coins.length - 1; i >= 0; i--) {
+                let coin = coins[i];
+                coin.position.z += speed;
+                coin.rotation.z += 0.05;
+                coin.box.setFromObject(coin);
+
+                if (playerBox.intersectsBox(coin.box)) {
+                    coinsCollected++;
+                    document.getElementById('run-coins').innerText = coinsCollected;
+                    scene.remove(coin);
+                    coins.splice(i, 1);
+                    continue;
                 }
 
-                const moveStep = worldSpeed * delta;
-
-                // Проверка столкновений
-                for (let i = obstacles.length - 1; i >= 0; i--) {
-                    let obs = obstacles[i];
-                    obs.mesh.position.z += moveStep;
-
-                    let hitHeight = obs.type === 'barrier' ? 0.65 : 0.85;
-
-                    if (Math.abs(obs.mesh.position.z - playerGroup.position.z) < 1.0 &&
-                        obs.lane === currentLane + 1 && playerGroup.position.y < hitHeight) {
-                        AudioEngine.playCrash();
-                        gameOver();
-                    }
-
-                    if (obs.mesh.position.z > 12) {
-                        scene.remove(obs.mesh);
-                        obstacles.splice(i, 1);
-                        spawnPattern(-110);
-                    }
+                if (coin.position.z > 5) {
+                    scene.remove(coin);
+                    coins.splice(i, 1);
                 }
+            }
 
-                // Сбор монет
-                for (let i = coins.length - 1; i >= 0; i--) {
-                    let coin = coins[i];
-                    coin.position.z += moveStep;
-                    coin.rotation.z += 3.0 * delta;
-
-                    if (Math.abs(coin.position.z - playerGroup.position.z) < 1.1 &&
-                        Math.abs(coin.position.x - playerGroup.position.x) < 0.9 &&
-                        Math.abs(coin.position.y - playerGroup.position.y) < 1.1) {
-                        
-                        scene.remove(coin);
-                        coins.splice(i, 1);
-                        score += 10;
-                        document.getElementById('score-val').innerText = score;
-                        AudioEngine.playCoin();
-                    } else if (coin.position.z > 12) {
-                        scene.remove(coin);
-                        coins.splice(i, 1);
-                    }
-                }
-
-                buildings.forEach(bld => {
-                    bld.position.z += moveStep;
-                    if (bld.position.z > 20) bld.position.z -= 320;
-                });
-
-                camera.position.set(playerGroup.position.x * 0.3, 2.7, playerGroup.position.z + 4.0);
-                camera.lookAt(playerGroup.position.x * 0.3, 1.1, playerGroup.position.z - 6.0);
+            if (maxZ > -180) {
+                spawnRow(maxZ - 15);
             }
 
             renderer.render(scene, camera);
         }
 
-        function gameOver() {
-            isPlaying = false;
-            bgMusic.pause();
-            document.getElementById('menu-overlay').style.display = 'flex';
-            document.querySelector('.title').innerText = "ИГРА ОКОНЧАНА";
-            document.getElementById('start-btn').innerText = "ИГРАТЬ СНОВА";
-            document.getElementById('loader-info').innerText = "Ваш результат: " + score;
+        function triggerGameOver() {
+            isGameOver = true;
+            document.getElementById('final-coins').innerText = coinsCollected;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+            saveCoinsToFirebase(coinsCollected);
+        }
+
+        function restartGame() {
+            obstacles.forEach(obs => scene.remove(obs));
+            coins.forEach(coin => scene.remove(coin));
+            obstacles = [];
+            coins = [];
+
+            currentLane = 0;
+            targetX = 0;
+            player.position.set(0, 0.6, 0);
+            coinsCollected = 0;
+            score = 0;
+            isGameOver = false;
+
+            document.getElementById('run-coins').innerText = "0";
+            document.getElementById('game-over-screen').classList.add('hidden');
+
+            spawnInitialObjects();
+            animate();
         }
 
         function onWindowResize() {
-            updateCameraAspect();
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        document.getElementById('start-btn').addEventListener('click', startGame);
-
-        initScene();
-        animate();
+        window.onload = init3D;
     </script>
 </body>
 </html>
