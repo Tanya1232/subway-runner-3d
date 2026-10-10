@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Subway Runner 3D</title>
+    
+    <!-- Monetag SDK -->
+    <script src='//libtl.com/sdk.js' data-zone='11997011' data-sdk='show_11997011'></script>
+
     <style>
         body { margin: 0; overflow: hidden; background: #87ceeb; font-family: sans-serif; user-select: none; touch-action: none; }
         
@@ -76,7 +80,7 @@
     </div>
 
     <div id="gameOverScreen">
-        <h1>ИГРА ОКОНЧЕНА</h1>
+        <h1>ИГРА ОКОНЧАНА</h1>
         <p>Собрано монет: <span id="finalScore">0</span></p>
         <p id="saveStatus" style="font-size: 14px; color: #00cec9; font-weight: bold;">Сохранение в Rival Coin...</p>
         <div class="btn-container">
@@ -91,6 +95,9 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+        // ==========================================
+        // 1. TELEGRAM & FIREBASE
+        // ==========================================
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) {
             tg.ready();
@@ -127,6 +134,7 @@
         async function saveCoinsToFirebase(collectedCoins) {
             if (collectedCoins <= 0) {
                 document.getElementById('saveStatus').innerText = "Монеты не собраны";
+                document.getElementById('watchAdBtn').style.display = 'none';
                 return;
             }
             lastEarnedCoins = collectedCoins;
@@ -148,30 +156,38 @@
             }
         }
 
-        // Функция для Monetag Rewarded Video
-        window.watchAdReward = async function() {
+        // ==========================================
+        // 2. MONETAG REWARDED POPUP
+        // ==========================================
+        window.watchAdReward = function() {
             if (adWatched) return;
-            
-            // Здесь в будущем вы вызываете код Monetag SDK для показа рекламы.
-            // Пример интеграции: когда пользователь досмотрел видео до конца ->
-            
-            adWatched = true;
-            document.getElementById('watchAdBtn').style.display = 'none';
-            document.getElementById('saveStatus').innerText = "Загрузка бонуса x2...";
 
-            try {
-                const docSnap = await getDoc(userDocRef);
-                let currentBalance = 0;
-                if (docSnap.exists()) {
-                    currentBalance = docSnap.data().balance || 0;
-                }
-                // Добавляем еще столько же монет (удваиваем)
-                await setDoc(userDocRef, { balance: currentBalance + lastEarnedCoins }, { merge: true });
-                let totalFinal = lastEarnedCoins * 2;
-                document.getElementById('finalScore').innerText = totalFinal;
-                document.getElementById('saveStatus').innerText = "Бонус x2 успешно зачислен!";
-            } catch (err) {
-                console.error("Ошибка бонуса:", err);
+            if (typeof window.show_11997011 === 'function') {
+                window.show_11997011('pop').then(async () => {
+                    // Успешный просмотр рекламы
+                    adWatched = true;
+                    document.getElementById('watchAdBtn').style.display = 'none';
+                    document.getElementById('saveStatus').innerText = "Загрузка бонуса x2...";
+
+                    try {
+                        const docSnap = await getDoc(userDocRef);
+                        let currentBalance = 0;
+                        if (docSnap.exists()) {
+                            currentBalance = docSnap.data().balance || 0;
+                        }
+                        await setDoc(userDocRef, { balance: currentBalance + lastEarnedCoins }, { merge: true });
+                        let totalFinal = lastEarnedCoins * 2;
+                        document.getElementById('finalScore').innerText = totalFinal;
+                        document.getElementById('saveStatus').innerText = "Бонус x2 успешно зачислен!";
+                    } catch (err) {
+                        console.error("Ошибка сохранения бонуса:", err);
+                    }
+                }).catch(e => {
+                    console.warn("Ошибка просмотра рекламы или закрыто раньше времени:", e);
+                    document.getElementById('saveStatus').innerText = "Реклама не была досмотрена!";
+                });
+            } else {
+                console.warn("Monetag SDK не загружен");
             }
         };
 
@@ -184,7 +200,7 @@
         };
 
         // ==========================================
-        // SCENE & GAME LOGIC
+        // 3. GAME ENGINE (THREE.JS)
         // ==========================================
         let audioCtx = null;
         let bgmInterval = null;
@@ -558,7 +574,6 @@
             }
         }
 
-        // Увеличен интервал появления объектов до 1700мс, чтобы препятствий стало меньше
         setInterval(spawnPattern, 1700);
 
         const clock = new THREE.Clock();
