@@ -24,20 +24,39 @@
         #gameOverScreen {
             display: none;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85); padding: 30px; border-radius: 15px;
-            text-align: center; color: white; box-shadow: 0 0 20px rgba(0,0,0,0.5); z-index: 10; width: 80%; max-width: 350px;
+            background: rgba(0, 0, 0, 0.85); padding: 25px; border-radius: 15px;
+            text-align: center; color: white; box-shadow: 0 0 20px rgba(0,0,0,0.5); z-index: 10; width: 85%; max-width: 360px;
         }
-        #gameOverScreen h1 { color: #ff4444; margin-top: 0; font-size: 32px; }
-        #gameOverScreen p { font-size: 18px; color: gold; margin: 10px 0; }
+        #gameOverScreen h1 { color: #ff4444; margin-top: 0; font-size: 28px; }
+        #gameOverScreen p { font-size: 18px; color: gold; margin: 8px 0; }
+
+        .btn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+        }
 
         .game-btn {
-            background: #ff4444; color: white; border: none; padding: 15px 35px;
-            font-size: 20px; font-weight: bold; border-radius: 10px; cursor: pointer;
+            background: #ff4444; color: white; border: none; padding: 12px 20px;
+            font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer;
             transition: transform 0.1s, background 0.2s;
-            box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4); margin-top: 15px;
+            box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
         }
-        .game-btn:hover { background: #ff2222; transform: scale(1.05); }
+        .game-btn:hover { background: #ff2222; transform: scale(1.03); }
         .game-btn:active { transform: scale(0.95); }
+
+        .ad-btn {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+        .ad-btn:hover { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+
+        .back-btn {
+            background: #3b82f6;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+        .back-btn:hover { background: #2563eb; }
     </style>
     <script type="importmap">
       {
@@ -57,10 +76,14 @@
     </div>
 
     <div id="gameOverScreen">
-        <h1>ИГРА ОКОНЧАНА</h1>
+        <h1>ИГРА ОКОНЧЕНА</h1>
         <p>Собрано монет: <span id="finalScore">0</span></p>
-        <p id="saveStatus" style="font-size: 14px; color: #00cec9;">Сохранение в тапалку...</p>
-        <button class="game-btn" onclick="restartGame()">Играть снова</button>
+        <p id="saveStatus" style="font-size: 14px; color: #00cec9; font-weight: bold;">Сохранение в Rival Coin...</p>
+        <div class="btn-container">
+            <button class="game-btn ad-btn" id="watchAdBtn" onclick="watchAdReward()">📺 УДВОИТЬ СХОДУ (Реклама)</button>
+            <button class="game-btn" onclick="restartGame()">ИГРАТЬ СНОВА</button>
+            <button class="game-btn back-btn" onclick="returnToTapper()">ВЕРНУТЬСЯ В RIVAL COIN</button>
+        </div>
     </div>
 
     <script type="module">
@@ -68,16 +91,12 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-        // ==========================================
-        // 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM И FIREBASE (ТАПАЛКА)
-        // ==========================================
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) {
             tg.ready();
             tg.expand();
         }
 
-        // Получаем ID пользователя из ссылки (?uid=...) или Telegram, либо демо
         const urlParams = new URLSearchParams(window.location.search);
         let userId = urlParams.get('uid');
         if (!userId) {
@@ -102,12 +121,19 @@
         const db = getFirestore(app);
         const userDocRef = doc(db, "users", userId);
 
+        let lastEarnedCoins = 0;
+        let adWatched = false;
+
         async function saveCoinsToFirebase(collectedCoins) {
             if (collectedCoins <= 0) {
                 document.getElementById('saveStatus').innerText = "Монеты не собраны";
                 return;
             }
-            document.getElementById('saveStatus').innerText = "Сохранение в баланс...";
+            lastEarnedCoins = collectedCoins;
+            adWatched = false;
+            document.getElementById('watchAdBtn').style.display = 'block';
+            document.getElementById('saveStatus').innerText = "Сохранение в Rival Coin...";
+            
             try {
                 const docSnap = await getDoc(userDocRef);
                 let currentBalance = 0;
@@ -115,15 +141,50 @@
                     currentBalance = docSnap.data().balance || 0;
                 }
                 await setDoc(userDocRef, { balance: currentBalance + collectedCoins }, { merge: true });
-                document.getElementById('saveStatus').innerText = "Успешно добавлено в тапалку!";
+                document.getElementById('saveStatus').innerText = "Успешно добавлено в Rival Coin!";
             } catch (err) {
                 console.error("Ошибка сохранения:", err);
                 document.getElementById('saveStatus').innerText = "Ошибка сохранения";
             }
         }
 
+        // Функция для Monetag Rewarded Video
+        window.watchAdReward = async function() {
+            if (adWatched) return;
+            
+            // Здесь в будущем вы вызываете код Monetag SDK для показа рекламы.
+            // Пример интеграции: когда пользователь досмотрел видео до конца ->
+            
+            adWatched = true;
+            document.getElementById('watchAdBtn').style.display = 'none';
+            document.getElementById('saveStatus').innerText = "Загрузка бонуса x2...";
+
+            try {
+                const docSnap = await getDoc(userDocRef);
+                let currentBalance = 0;
+                if (docSnap.exists()) {
+                    currentBalance = docSnap.data().balance || 0;
+                }
+                // Добавляем еще столько же монет (удваиваем)
+                await setDoc(userDocRef, { balance: currentBalance + lastEarnedCoins }, { merge: true });
+                let totalFinal = lastEarnedCoins * 2;
+                document.getElementById('finalScore').innerText = totalFinal;
+                document.getElementById('saveStatus').innerText = "Бонус x2 успешно зачислен!";
+            } catch (err) {
+                console.error("Ошибка бонуса:", err);
+            }
+        };
+
+        window.returnToTapper = function() {
+            if (tg && tg.close) {
+                tg.close();
+            } else {
+                window.history.back();
+            }
+        };
+
         // ==========================================
-        // 2. АУДИО И ЗВУКИ
+        // SCENE & GAME LOGIC
         // ==========================================
         let audioCtx = null;
         let bgmInterval = null;
@@ -191,9 +252,6 @@
             }, 180);
         }
 
-        // ==========================================
-        // 3. НАСТРОЙКА СЦЕНЫ THREE.JS
-        // ==========================================
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.Fog(0x87ceeb, 30, 90);
@@ -207,14 +265,12 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-        scene.add(ambientLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
         dirLight.position.set(5, 15, 5);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // Дорога и тротуары
         const roadGeo = new THREE.PlaneGeometry(8, 600);
         const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
         const road = new THREE.Mesh(roadGeo, roadMat);
@@ -294,9 +350,6 @@
             buildings.push(buildingGroup);
         }
 
-        // ==========================================
-        // 4. НОРМАЛЬНЫЙ 3D-ПЕРСОНАЖ С АНИМАЦИЕЙ БЕГА
-        // ==========================================
         const playerGroup = new THREE.Group();
         playerGroup.rotation.y = Math.PI; 
         scene.add(playerGroup);
@@ -304,20 +357,18 @@
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3 });
         const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.5 });
         const limbMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+        const armMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.4 });
 
-        // Торс
         const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.3), bodyMat);
         torso.position.y = 0.75;
         torso.castShadow = true;
         playerGroup.add(torso);
 
-        // Голова
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 0.38), headMat);
         head.position.y = 1.3;
         head.castShadow = true;
         playerGroup.add(head);
 
-        // Ноги для анимации бега
         const legGeo = new THREE.BoxGeometry(0.18, 0.65, 0.22);
         const leftLeg = new THREE.Mesh(legGeo, limbMat);
         leftLeg.position.set(-0.14, 0.32, 0);
@@ -329,14 +380,25 @@
         rightLeg.castShadow = true;
         playerGroup.add(rightLeg);
 
+        const armGeo = new THREE.BoxGeometry(0.15, 0.6, 0.18);
+        const leftArm = new THREE.Mesh(armGeo, armMat);
+        leftArm.position.set(-0.36, 0.75, 0);
+        leftArm.castShadow = true;
+        playerGroup.add(leftArm);
+
+        const rightArm = new THREE.Mesh(armGeo, armMat);
+        rightArm.position.set(0.36, 0.75, 0);
+        rightArm.castShadow = true;
+        playerGroup.add(rightArm);
+
         const lanes = [-2.6, 0, 2.6];
         let currentLane = 1;
         let targetX = 0;
         let score = 0;
         
-        let gameSpeed = 13;
-        const baseGameSpeed = 13;
-        const maxGameSpeed = 28;
+        let gameSpeed = 8;
+        const baseGameSpeed = 8;
+        const maxGameSpeed = 32;
 
         let isPlaying = false;
         let isGameOver = false;
@@ -471,7 +533,8 @@
 
             if (rand > 0.5) {
                 const laneIndex = Math.floor(Math.random() * 3);
-                for (let k = 0; k < 6; k++) {
+                const coinCount = score < 20 ? 3 : 6;
+                for (let k = 0; k < coinCount; k++) {
                     const coin = new THREE.Mesh(coinGeo, coinMat);
                     coin.rotation.x = Math.PI / 2;
                     coin.position.set(lanes[laneIndex], 0.5, -110 - (k * 2.2));
@@ -479,30 +542,24 @@
                     scene.add(coin);
                     gameObjects.push(coin);
                 }
-            } else if (rand > 0.25) {
-                const blockedLane1 = Math.floor(Math.random() * 3);
-                let blockedLane2 = (blockedLane1 + 1 + Math.floor(Math.random() * 2)) % 3;
-                [blockedLane1, blockedLane2].forEach(lane => {
-                    const isCone = Math.random() > 0.5;
-                    const obstacle = isCone ? createTrafficCone() : createRoadBarrier();
-                    obstacle.position.set(lanes[lane], 0, -110);
-                    scene.add(obstacle);
-                    gameObjects.push(obstacle);
-                });
+            } else if (rand > 0.3) {
+                const laneIndex = Math.floor(Math.random() * 3);
+                const isCone = Math.random() > 0.5;
+                const obstacle = isCone ? createTrafficCone() : createRoadBarrier();
+                obstacle.position.set(lanes[laneIndex], 0, -110);
+                scene.add(obstacle);
+                gameObjects.push(obstacle);
             } else {
                 const laneIndex = Math.floor(Math.random() * 3);
-                const typeRand = Math.random();
-                let obstacle;
-                if (typeRand > 0.4) obstacle = createCarObstacle();
-                else if (typeRand > 0.2) obstacle = createRoadBarrier();
-                else obstacle = createTrafficCone();
+                const obstacle = createCarObstacle();
                 obstacle.position.set(lanes[laneIndex], 0, -110);
                 scene.add(obstacle);
                 gameObjects.push(obstacle);
             }
         }
 
-        setInterval(spawnPattern, 900);
+        // Увеличен интервал появления объектов до 1700мс, чтобы препятствий стало меньше
+        setInterval(spawnPattern, 1700);
 
         const clock = new THREE.Clock();
 
@@ -512,13 +569,16 @@
             
             if (!isPlaying || isGameOver) return;
 
-            gameSpeed = Math.min(maxGameSpeed, baseGameSpeed + score * 0.15);
+            gameSpeed = Math.min(maxGameSpeed, baseGameSpeed + score * 0.2);
+
             playerGroup.position.x += (targetX - playerGroup.position.x) * 0.15;
 
-            // Анимация бега персонажа
-            const runTime = clock.getElapsedTime() * 16;
+            const runTime = clock.getElapsedTime() * (10 + gameSpeed * 0.4);
             leftLeg.rotation.x = Math.sin(runTime) * 0.7;
             rightLeg.rotation.x = -Math.sin(runTime) * 0.7;
+            leftArm.rotation.x = -Math.sin(runTime) * 0.7;
+            rightArm.rotation.x = Math.sin(runTime) * 0.7;
+            
             torso.position.y = 0.75 + Math.abs(Math.sin(runTime * 2)) * 0.05;
             head.position.y = 1.3 + Math.abs(Math.sin(runTime * 2)) * 0.05;
 
