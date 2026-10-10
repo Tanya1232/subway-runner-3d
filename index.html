@@ -183,9 +183,8 @@
                 }
             };
 
-            // Вызов видеорекламы Monetag
             if (typeof window.show_11997011 === 'function') {
-                window.show_11997011().then(() => {
+                window.show_11997011('pop').then(() => {
                     applyReward();
                 }).catch(e => {
                     console.warn("Ошибка показа видео:", e);
@@ -196,22 +195,17 @@
             }
         };
 
-        // НАДЕЖНЫЙ ВОЗВРАТ В ТАПАЛКУ
+        // ПРИНУДИТЕЛЬНЫЙ ВОЗВРАТ В БОТА ТЕЛЕГРАМ
         window.returnToTapper = function() {
-            if (document.referrer && document.referrer.includes("github.io")) {
-                window.location.href = document.referrer;
-            } else if (window.history.length > 1) {
-                window.history.back();
-            } else if (tg && tg.close) {
+            if (tg && tg.close) {
                 tg.close();
-            } else {
-                // Прямой переход в тапалку хаба
-                window.location.href = "https://tanya1232.github.io/rival-coin/";
             }
+            // Перенаправление на вашего бота в Telegram
+            window.location.href = "https://t.me/RivalCoin_bot";
         };
 
         // ==========================================
-        // 3. THREE.JS ENGINE (С АДАПТАЦИЕЙ ПОД СМАРТФОНЫ)
+        // 3. THREE.JS ENGINE (НАСТРОЙКА КАМЕРЫ ДЛЯ СМАРТФОНОВ)
         // ==========================================
         let audioCtx = null;
         let bgmInterval = null;
@@ -283,12 +277,11 @@
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.Fog(0x87ceeb, 30, 90);
 
-        // Расширенный угол обзора для узких экранов телефонов (широкий FOV)
+        // Настройка камеры с увеличенной высотой и отдалением для мобилок
         const aspect = window.innerWidth / window.innerHeight;
-        const initialFov = aspect < 1 ? 75 : 60; // Если экран узкий — отдаляем камеру
-        const camera = new THREE.PerspectiveCamera(initialFov, aspect, 0.1, 1000);
-        camera.position.set(0, 2.5, 4.5);
-        camera.lookAt(0, 0.8, -5);
+        const camera = new THREE.PerspectiveCamera(85, aspect, 0.1, 1000);
+        camera.position.set(0, 4.0, 7.0); // Подняли до 4.0 и отвели назад до 7.0
+        camera.lookAt(0, 0.5, -6.0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -301,7 +294,7 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // Дорога и широкие тротуары
+        // Дорога
         const roadGeo = new THREE.PlaneGeometry(8, 600);
         const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
         const road = new THREE.Mesh(roadGeo, roadMat);
@@ -682,7 +675,6 @@
 
         window.addEventListener('resize', () => {
             const newAspect = window.innerWidth / window.innerHeight;
-            camera.fov = newAspect < 1 ? 75 : 60; // Адаптация под узкие смартфоны
             camera.aspect = newAspect;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
