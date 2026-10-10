@@ -81,9 +81,9 @@
     </div>
 
     <div id="gameOverScreen">
-        <h1>ИГРА ОКОНЧАНА</h1>
+        <h1>ИГРА ОКОНЧЕНА</h1>
         <p>Собрано монет: <span id="finalScore">0</span></p>
-        <p id="saveStatus" style="font-size: 14px; color: #00cec9; font-weight: bold;">Сохранение в Rival Coin...</p>
+        <p id="saveStatus" style="font-size: 13px; color: #00cec9; font-weight: bold;">Сохранение в Rival Coin...</p>
         <div class="btn-container">
             <button class="game-btn ad-btn" id="watchAdBtn" onclick="watchAdReward()">📺 УДВОИТЬ СХОДУ (Видео)</button>
             <button class="game-btn" onclick="restartGame()">ИГРАТЬ СНОВА</button>
@@ -92,12 +92,12 @@
     </div>
 
     <script type="module">
-        import * as THREE from 'three';
+        import * -> as THREE from 'three';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         // ==========================================
-        // 1. TELEGRAM & FIREBASE
+        // 1. TELEGRAM & FIREBASE (СУПЕР-НАДЕЖНЫЙ UID)
         // ==========================================
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) {
@@ -106,15 +106,20 @@
         }
 
         const urlParams = new URLSearchParams(window.location.search);
-        let userId = urlParams.get('uid');
-        if (!userId) {
-            userId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null;
+        let userId = urlParams.get('uid') || urlParams.get('userId');
+
+        if (!userId && tg?.initDataUnsafe?.user?.id) {
+            userId = String(tg.initDataUnsafe.user.id);
         }
         if (!userId) {
-            userId = localStorage.getItem('rival_demo_uid') || 'demo_' + Math.floor(Math.random() * 1000000);
-            localStorage.setItem('rival_demo_uid', userId);
+            userId = localStorage.getItem('rival_uid');
         }
+        if (!userId) {
+            userId = 'user_' + Math.floor(Math.random() * 900000 + 100000);
+        }
+        localStorage.setItem('rival_uid', userId);
         userId = String(userId);
+        console.log("Rival Coin active UID:", userId);
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfnuR07pt2IIWCScmI7H4aSy57XIHZpHg",
@@ -141,19 +146,19 @@
             lastEarnedCoins = collectedCoins;
             adWatched = false;
             document.getElementById('watchAdBtn').style.display = 'block';
-            document.getElementById('saveStatus').innerText = "Сохранение в Rival Coin...";
+            document.getElementById('saveStatus').innerText = "Сохранение (ID: " + userId + ")...";
             
             try {
                 const docSnap = await getDoc(userDocRef);
                 let currentBalance = 0;
-                if (docSnap.exists()) {
-                    currentBalance = docSnap.data().balance || 0;
+                if (docSnap.exists() && docSnap.data().balance !== undefined) {
+                    currentBalance = Number(docSnap.data().balance) || 0;
                 }
                 await setDoc(userDocRef, { balance: currentBalance + collectedCoins }, { merge: true });
                 document.getElementById('saveStatus').innerText = "Успешно добавлено в Rival Coin!";
             } catch (err) {
                 console.error("Ошибка сохранения:", err);
-                document.getElementById('saveStatus').innerText = "Ошибка сохранения";
+                document.getElementById('saveStatus').innerText = "Ошибка сохранения в базу!";
             }
         }
 
@@ -171,8 +176,8 @@
                 try {
                     const docSnap = await getDoc(userDocRef);
                     let currentBalance = 0;
-                    if (docSnap.exists()) {
-                        currentBalance = docSnap.data().balance || 0;
+                    if (docSnap.exists() && docSnap.data().balance !== undefined) {
+                        currentBalance = Number(docSnap.data().balance) || 0;
                     }
                     await setDoc(userDocRef, { balance: currentBalance + lastEarnedCoins }, { merge: true });
                     let totalFinal = lastEarnedCoins * 2;
@@ -196,8 +201,9 @@
             }
         };
 
+        // НАДЕЖНЫЙ ВОЗВРАТ В БОТА
         window.returnToTapper = function() {
-            if (tg && tg.close) {
+            if (tg && typeof tg.close === 'function') {
                 tg.close();
             } else {
                 window.location.href = "https://t.me/RivalCoin_bot";
@@ -205,7 +211,7 @@
         };
 
         // ==========================================
-        // 3. THREE.JS ENGINE (ОПТИМАЛЬНОЕ ПОЛОЖЕНИЕ КАМЕРЫ)
+        // 3. THREE.JS ENGINE
         // ==========================================
         let audioCtx = null;
         let bgmInterval = null;
@@ -277,7 +283,6 @@
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.Fog(0x87ceeb, 30, 90);
 
-        // Золотая середина: персонаж ближе и крупнее, но дорога полностью на виду
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.PerspectiveCamera(65, aspect, 0.1, 1000);
         camera.position.set(0, 2.8, 5.0);
