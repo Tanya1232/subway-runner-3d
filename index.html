@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Subway Runner 3D</title>
-    
+
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -13,7 +13,7 @@
 
     <style>
         body { margin: 0; overflow: hidden; background: #87ceeb; font-family: sans-serif; user-select: none; touch-action: none; }
-        
+
         #scoreBoard {
             display: none;
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
@@ -27,7 +27,7 @@
             justify-content: center; align-items: center; color: white; z-index: 10;
         }
         #menuScreen h1 { font-size: 38px; color: gold; margin-bottom: 20px; text-shadow: 0 0 20px rgba(255,215,0,0.5); text-align: center; }
-        
+
         #gameOverScreen {
             display: none;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -147,7 +147,7 @@
             adWatched = false;
             document.getElementById('watchAdBtn').style.display = 'block';
             document.getElementById('saveStatus').innerText = "Сохранение (ID: " + userId + ")...";
-            
+
             try {
                 await setDoc(userDocRef, { balance: increment(collectedCoins) }, { merge: true });
                 document.getElementById('saveStatus').innerText = "Успешно добавлено в RivalCoin!";
@@ -234,7 +234,7 @@
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            
+
             const now = audioCtx.currentTime;
             if (type === 'coin') {
                 osc.type = 'sine';
@@ -361,14 +361,14 @@
             const wallColors = ['#444455', '#554444', '#334455', '#4f4f5f', '#3a3a4a'];
             ctx.fillStyle = wallColors[Math.floor(Math.random() * wallColors.length)];
             ctx.fillRect(0, 0, 64, 64);
-            
+
             for (let wx = 8; wx < 64; wx += 14) {
                 for (let wy = 8; wy < 64; wy += 18) {
                     ctx.fillStyle = Math.random() > 0.3 ? '#ffea75' : '#1a1a2a';
                     ctx.fillRect(wx, wy, 8, 11);
                 }
             }
-            
+
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
@@ -436,7 +436,7 @@
         let currentLane = 1;
         let targetX = 0;
         let score = 0;
-        
+
         let gameSpeed = 8;
         const baseGameSpeed = 8;
         const maxGameSpeed = 32;
@@ -603,22 +603,36 @@
 
         const clock = new THREE.Clock();
 
+        // Изменена только камера: в портретном режиме она плавно следует за игроком по X.
+        function updateCamera() {
+            const portrait = window.innerHeight > window.innerWidth;
+            const targetCameraX = portrait ? playerGroup.position.x : 0;
+
+            camera.position.x += (targetCameraX - camera.position.x) * 0.15;
+            camera.lookAt(
+                portrait ? playerGroup.position.x : 0,
+                1,
+                -1.5
+            );
+        }
+
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
-            
+
             if (!isPlaying || isGameOver) return;
 
             gameSpeed = Math.min(maxGameSpeed, baseGameSpeed + score * 0.2);
 
             playerGroup.position.x += (targetX - playerGroup.position.x) * 0.15;
+            updateCamera();
 
             const runTime = clock.getElapsedTime() * (10 + gameSpeed * 0.4);
             leftLeg.rotation.x = Math.sin(runTime) * 0.7;
             rightLeg.rotation.x = -Math.sin(runTime) * 0.7;
             leftArm.rotation.x = -Math.sin(runTime) * 0.7;
             rightArm.rotation.x = Math.sin(runTime) * 0.7;
-            
+
             torso.position.y = 0.75 + Math.abs(Math.sin(runTime * 2)) * 0.05;
             head.position.y = 1.3 + Math.abs(Math.sin(runTime * 2)) * 0.05;
 
@@ -645,14 +659,14 @@
             for (let i = gameObjects.length - 1; i >= 0; i--) {
                 const obj = gameObjects[i];
                 obj.position.z += gameSpeed * delta;
-                
+
                 if (obj.userData.type === 'coin') obj.rotation.z += 5 * delta;
 
                 if (!obj.userData.passed) {
                     const hitDepth = obj.userData.sizeZ || 1.0;
                     if (Math.abs(obj.position.z - playerGroup.position.z) < (hitDepth / 2 + 0.5) && 
                         Math.abs(obj.position.x - playerGroup.position.x) < 1.0) {
-                        
+
                         if (obj.userData.type === 'coin') {
                             if (playerGroup.position.y < 0.8) {
                                 score++;
@@ -691,11 +705,19 @@
         animate();
 
         window.addEventListener('resize', () => {
-            const newAspect = window.innerWidth / window.innerHeight;
-            camera.aspect = newAspect;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const portrait = height > width;
+
+            camera.aspect = width / height;
+            camera.fov = portrait ? 70 : 65;
+            camera.position.y = portrait ? 2.5 : 2.8;
+            camera.position.z = portrait ? 8 : 6.5;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(width, height);
+            updateCamera();
         });
     </script>
 </body>
 </html>
+
