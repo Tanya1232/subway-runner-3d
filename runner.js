@@ -15,7 +15,7 @@ for (const link of document.querySelectorAll('[data-home]')) {
 tg?.BackButton?.show();
 tg?.BackButton?.onClick(home);
 
-let lastRun, adBusy = false, adNotice = '';
+let lastRun;
 const wallet = createWallet(tg,paintWallet);
 paintWallet();
 
@@ -24,34 +24,13 @@ function paintWallet() {
   if (!lastRun) return;
   const receipt = wallet.receipt(lastRun.id);
   $('final-coins').textContent = lastRun.coins * (lastRun.bonus ? 2 : 1) + ' RIVAL';
-  $('reward-ad').hidden = !wallet.connected || !lastRun.coins || lastRun.bonus;
-  $('reward-ad').disabled = adBusy;
-  $('save-status').textContent = adBusy ? 'Открываем видео…' : adNotice ||
+  $('save-status').textContent = 
     (!wallet.connected ? 'Войдите через RivalCoin для зачисления наград.'
       : wallet.failed ? (wallet.storageFailed ? 'Нет связи. Оставьте окно открытым для сохранения.'
         : 'Прогресс на устройстве. Начислим, когда появится сеть.')
       : receipt && (!lastRun.bonus || receipt.bonus) ? 'Результат сохранён в RivalCoin.'
         : 'Сохраняем результат…');
 }
-$('reward-ad').addEventListener('click',async () => {
-  if (!lastRun || !lastRun.coins || lastRun.bonus || adBusy) return;
-  const show = window.show_11997011;
-  if (typeof show !== 'function') {
-    adNotice = 'Видео пока недоступно.';
-    paintWallet();
-    return;
-  }
-  const run = lastRun;
-  adBusy = true;
-  adNotice = '';
-  paintWallet();
-  try {
-    await show();
-    run.bonus = true;
-    wallet.enqueue(run);
-  } catch { if (lastRun === run) adNotice = 'Просмотр прерван. Попробуйте ещё раз.'; }
-  finally { adBusy = false; paintWallet(); }
-});
 
 try {
   const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
@@ -325,7 +304,6 @@ function prepare(THREE) {
     shield = false;
     hintTime = 4;
     lastRun = null;
-    adNotice = '';
     for (let i = 0; i < 6; i++) addObject('coin',1,6+i*1.5);
     drawHud();
     show('running');
